@@ -1,8 +1,3 @@
-"""A brief webscraping portfolio project which uses the requests library to scrape a json document from a website -
-'gtabase.com' containing GTAV vehicle details and statistics. This is then manipulated in Pandas and saved to an Excel
-file for visualisation in Tableau.
-"""
-
 import requests
 import json
 import pandas as pd
