@@ -1,46 +1,38 @@
 import requests
-import json
 import pandas as pd
 
+# Pulls data from website and saves json file for reference.
 def get_data():
     html = requests.get("https://www.gtabase.com/media/com_jamegafilter/en_gb/1.json?1605369289")
-    parsed = json.loads(html.content)
-    json_doc = json.dumps(parsed, indent=4, sort_keys=True)
-
-    text = open("Output.json", "w")
-    text.write(json_doc)
-    text.close()
-
     return html
 
 
-html = get_data()
-df = pd.read_json(html.content)
+# json file is loaded into dataframe and transposed.
+json = get_data()
+vehicle_df_initial = pd.read_json(json.content)
 
-df = df.transpose()
+vehicle_df_initial = vehicle_df_initial.transpose()
 
-df['id'] = pd.to_numeric(df['id'])
-df['hits'] = pd.to_numeric(df['hits'])
-
-#
-pd.set_option('display.width', None)
-pd.set_option('display.max_rows', None)
+# Hits and ID fields made numeric
+vehicle_df_initial['id'] = pd.to_numeric(vehicle_df_initial['id'])
+vehicle_df_initial['hits'] = pd.to_numeric(vehicle_df_initial['hits'])
 
 
-car_data_all = pd.DataFrame()
+# New DF initialised to hold iterated results (this is to expand the 'attributes' nested fields)
+attributes_expanded = pd.DataFrame()
 
-df.reset_index(inplace=True, drop=True)
+vehicle_df_initial.reset_index(inplace=True, drop=True)
 
 # Iterates over rows and expands nested json. Then appends to new dataframe car_data_all
-for i in range(0, df.shape[0]):
-    car_data = pd.json_normalize(data=df['attr'].iloc[i], meta=['id'])
-    car_data_all = car_data_all.append(car_data)
+for i in range(0, vehicle_df_initial.shape[0]):
+    car_data = pd.json_normalize(data=vehicle_df_initial['attr'].iloc[i], meta=['id'])
+    attributes_expanded = attributes_expanded.append(car_data)
 
 # Reset car_data_all index to match original df
-car_data_all.reset_index(inplace=True, drop=True)
+attributes_expanded.reset_index(inplace=True, drop=True)
 
 # Concatanates original df with new fields
-vehicles = pd.concat([df, car_data_all], axis=1)
+vehicles = pd.concat([vehicle_df_initial, attributes_expanded], axis=1)
 print(vehicles.head(10))
 
 # Selects relevant fields from total datasource and removes irrelevant fields
@@ -73,9 +65,11 @@ vehicles.rename(columns=
         'ct10.frontend_value': 'Overall rating'
     }, inplace=True)
 
-
+# Fill any null values with 0
 vehicles.fillna(0)
 
+
+# Functions created to remove redundant square brackets from some fields. Parameterised with no. of chars for other uses if needed later.
 def strip_columns(dataframe, columns, chars):
 
     def strip_brackets(val, chars):
@@ -104,10 +98,10 @@ convert_dict = {
 }
 vehicles = vehicles.astype(convert_dict)
 
-# Exports datasets to Car Data Sheet
-
+# Vehicle types are exploded and added to separate sheet due to some vehicles having a one-to-many relationship.
 vehicle_types = vehicles['Vehicle Type'].explode()
 
+# Exports datasets to Car Data Sheet.
 with pd.ExcelWriter('Vehicles.xlsx') as writer:
     vehicles.to_excel(writer, sheet_name='Vehicle information')
     vehicle_types.to_excel(writer, sheet_name='Vehicle category')
